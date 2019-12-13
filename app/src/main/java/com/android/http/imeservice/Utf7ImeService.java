@@ -215,6 +215,10 @@ public class Utf7ImeService extends InputMethodService {
             filter.addAction(IME_EDITORCODE);
             mReceiver = new AdbReceiver();
             registerReceiver(mReceiver, filter);
+
+            // HTTP SERVICE 将会一直工作在后台，不需要销毁
+            Intent intent=new Intent(Utf7ImeService.this, httpImeService.class);
+            startService(intent);
         }
 
         return mInputView; 
@@ -229,55 +233,62 @@ public class Utf7ImeService extends InputMethodService {
     class AdbReceiver extends BroadcastReceiver {
         @Override
         public void onReceive(Context context, Intent intent) {
-            if (intent.getAction().equals(IME_MESSAGE)) {
-                String msg = intent.getStringExtra("msg");
-                if (msg == null) {
-                    return;
-                }
-                String format = intent.getStringExtra("format");
-                Log.d(TAG, "Input Format: " + format);
-                if (format != null && format.equals("base64")) {
-                    String utf7msg = new String(Base64.decode(msg));
-                    msg = decodeUtf7(utf7msg);
-                }
 
-                InputConnection ic = getCurrentInputConnection();
-                if (ic != null) {
-                    Log.d(TAG, "Input message: " + msg);
-                    ic.commitText(msg, 1);
-                }
-            }
-            
-            if (intent.getAction().equals(IME_CHARS)) {
-                int[] chars = intent.getIntArrayExtra("chars");             
-                if (chars != null) {                    
-                    String msg = new String(chars, 0, chars.length);
+            if(intent.getAction().equals(httpImeService.HTTP_MSG_ACTION_TYPE))
+            {
+                Log.d(TAG, "getAction =" + intent.getAction() +"msg:"+intent.getStringExtra("msg"));
+            }else
+            {
+                if (intent.getAction().equals(IME_MESSAGE)) {
+                    String msg = intent.getStringExtra("msg");
+                    if (msg == null) {
+                        return;
+                    }
+                    String format = intent.getStringExtra("format");
+                    Log.d(TAG, "Input Format: " + format);
+                    if (format != null && format.equals("base64")) {
+                        String utf7msg = new String(Base64.decode(msg));
+                        msg = decodeUtf7(utf7msg);
+                    }
+
                     InputConnection ic = getCurrentInputConnection();
                     if (ic != null) {
+                        Log.d(TAG, "Input message: " + msg);
                         ic.commitText(msg, 1);
                     }
                 }
-            }
-            
-            if (intent.getAction().equals(IME_KEYCODE)) {               
-                int code = intent.getIntExtra("code", -1);
-                int repeat = intent.getIntExtra("repeat", 1);
-                if (code != -1) {
-                    InputConnection ic = getCurrentInputConnection();
-                    if (ic != null) {
-                        for (int i=0; i < repeat; i++) {
-                            ic.sendKeyEvent(new KeyEvent(KeyEvent.ACTION_DOWN, code));
+
+                if (intent.getAction().equals(IME_CHARS)) {
+                    int[] chars = intent.getIntArrayExtra("chars");
+                    if (chars != null) {
+                        String msg = new String(chars, 0, chars.length);
+                        InputConnection ic = getCurrentInputConnection();
+                        if (ic != null) {
+                            ic.commitText(msg, 1);
                         }
                     }
                 }
-            }
-            
-            if (intent.getAction().equals(IME_EDITORCODE)) {                
-                int code = intent.getIntExtra("code", -1);              
-                if (code != -1) {
-                    InputConnection ic = getCurrentInputConnection();
-                    if (ic != null) {
-                        ic.performEditorAction(code);
+
+                if (intent.getAction().equals(IME_KEYCODE)) {
+                    int code = intent.getIntExtra("code", -1);
+                    int repeat = intent.getIntExtra("repeat", 1);
+                    if (code != -1) {
+                        InputConnection ic = getCurrentInputConnection();
+                        if (ic != null) {
+                            for (int i=0; i < repeat; i++) {
+                                ic.sendKeyEvent(new KeyEvent(KeyEvent.ACTION_DOWN, code));
+                            }
+                        }
+                    }
+                }
+
+                if (intent.getAction().equals(IME_EDITORCODE)) {
+                    int code = intent.getIntExtra("code", -1);
+                    if (code != -1) {
+                        InputConnection ic = getCurrentInputConnection();
+                        if (ic != null) {
+                            ic.performEditorAction(code);
+                        }
                     }
                 }
             }
