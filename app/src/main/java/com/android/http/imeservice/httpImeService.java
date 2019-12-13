@@ -13,53 +13,15 @@ import java.util.HashMap;
 import java.util.Map;
 import fi.iki.elonen.NanoHTTPD;
 
-
-
 public class httpImeService extends Service {
 
-    public  static final  String HTTP_MSG_ACTION_TYPE ="com.android.http.imeservice.HttpMsg";
     final  String TAG ="httpImeService";
-    private httpAgent https =null;
+    private httpServer https =null;
     @Override
     public void onCreate() {
-        try
-        {
-            https =new httpAgent("0.0.0.0",9600);
-        }catch (Exception e)
-        {
-            https.stop();
-            Log.d(TAG,"new httpAgent failed");
-        }
+        https =new httpServer("0.0.0.0",9600);
         super.onCreate();
         Log.d(TAG,"  ----->  onCreate");
-    }
-
-    @Override
-    public int onStartCommand(Intent intent,int flags, int startId) {
-        Log.d(TAG,"  ----->  onStartCommand");
-        if(https != null)
-        {
-            try
-            {
-                https.start();
-            }catch (Exception e)
-            {
-                Log.d(TAG,"http service launch failed");
-            }
-        }
-        return super.onStartCommand(intent, flags, startId);
-    }
-
-
-    @Override
-    public void onDestroy() {
-        super.onDestroy();
-        if(https != null)
-        {
-            https.stop();
-            https=null;
-        }
-        Log.d(TAG,"  ----->  onDestroy");
     }
 
     @Override
@@ -68,48 +30,75 @@ public class httpImeService extends Service {
         throw new UnsupportedOperationException("Not yet implemented");
     }
 
-    public class httpAgent extends NanoHTTPD {
+    public class httpServer extends NanoHTTPD {
 
         private Map<String, Object> objUriStore_ = new HashMap<>();
 
-        public httpAgent(String hostname, int port) throws IOException {
-            super(hostname, port);
-            this.start(NanoHTTPD.SOCKET_READ_TIMEOUT, true);
+        public httpServer(String hostname, int port)
+        {
+            super(hostname,port);
+            try
+            {
+                this.start(NanoHTTPD.SOCKET_READ_TIMEOUT, true);
+            }catch (Exception e)
+            {
+                Log.d(TAG,"new httpAgent failed  "+e);
+            }
+        }
+
+        private JSONObject buildResponse(String status)
+        {
+            JSONObject ret = new JSONObject();
+            try {
+                ret.put("status", status);
+            } catch (JSONException e) {
+                // 不太可能会进这里
+                e.printStackTrace();
+            }
+            return ret;
         }
 
         public JSONObject onRequest(JSONObject req)
         {
-            Intent intent =new Intent();
-            intent.setAction(HTTP_MSG_ACTION_TYPE);
-            intent.putExtra("msg","来自http的消息");
-            sendBroadcast(intent);
-            return null;
+            String context ="";
+            JSONObject resp =new JSONObject();
+            try {
+                context =req.getString("text");
+            } catch (JSONException e) {
+                e.printStackTrace();
+            }
+            if(context.length() > 0)
+            {
+                Intent intent =new Intent();
+                intent.setAction(Utf7ImeService.IME_MESSAGE);
+                intent.putExtra("msg",context);
+                sendBroadcast(intent);
+                return buildResponse("success");
+            }
+            return buildResponse("no context");
         }
         @Override
         public Response serve(IHTTPSession session) {
+            Map<String, String> body = new HashMap<>();
+            try {
+                session.parseBody(body);
+            } catch (IOException|ResponseException e) {
+                e.printStackTrace();
+                return newFixedLengthResponse(Response.Status.INTERNAL_ERROR, NanoHTTPD.MIME_PLAINTEXT, "get body failed");
+            }
             JSONObject req = null;
-            this.onRequest(req);
-            return newFixedLengthResponse(Response.Status.INTERNAL_ERROR, NanoHTTPD.MIME_PLAINTEXT, "get body failed");
-//            Map<String, String> body = new HashMap<>();
-//            try {
-//                session.parseBody(body);
-//            } catch (IOException|ResponseException e) {
-//                e.printStackTrace();
-//                return newFixedLengthResponse(Response.Status.INTERNAL_ERROR, NanoHTTPD.MIME_PLAINTEXT, "get body failed");
-//            }
-//            JSONObject req = null;
-//            try {
-//                req = new JSONObject(body.get("postData"));
-//            } catch (JSONException e) {
-//                return newFixedLengthResponse(Response.Status.INTERNAL_ERROR, NanoHTTPD.MIME_PLAINTEXT, "get post data failed");
-//            }
-//            System.out.println(req.toString());
-//            JSONObject resp = this.onRequest(req);
-//            if (resp != null) {
-//                return newFixedLengthResponse(Response.Status.OK, "application/json; charset=utf-8", resp.toString());
-//            } else {
-//                return newFixedLengthResponse(Response.Status.INTERNAL_ERROR, NanoHTTPD.MIME_PLAINTEXT, "server internal error. response is null");
-//            }
+            try {
+                req = new JSONObject(body.get("postData"));
+            } catch (JSONException e) {
+                return newFixedLengthResponse(Response.Status.INTERNAL_ERROR, NanoHTTPD.MIME_PLAINTEXT, "get post data failed");
+            }
+            Log.d(TAG,"req = "+ req.toString());
+            JSONObject resp = this.onRequest(req);
+            if (resp != null) {
+                return newFixedLengthResponse(Response.Status.OK, "application/json; charset=utf-8", resp.toString());
+            } else {
+                return newFixedLengthResponse(Response.Status.INTERNAL_ERROR, NanoHTTPD.MIME_PLAINTEXT, "server internal error. response is null");
+            }
         }
     }
 }

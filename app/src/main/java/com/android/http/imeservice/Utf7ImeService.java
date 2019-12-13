@@ -77,10 +77,11 @@ public class Utf7ImeService extends InputMethodService {
     private StringBuilder mComposing;
     private Charset mUtf7Charset;
 
-    private String IME_MESSAGE = "ADB_INPUT_TEXT";
-    private String IME_CHARS = "ADB_INPUT_CHARS";
-    private String IME_KEYCODE = "ADB_INPUT_CODE";
-    private String IME_EDITORCODE = "ADB_EDITOR_CODE";
+    public static final  String IME_MESSAGE = "ADB_INPUT_TEXT";
+    public static final  String IME_CHARS = "ADB_INPUT_CHARS";
+    public static final  String IME_KEYCODE = "ADB_INPUT_CODE";
+    public static final  String IME_EDITORCODE = "ADB_EDITOR_CODE";
+
     private BroadcastReceiver mReceiver = null;
 
 
@@ -233,62 +234,57 @@ public class Utf7ImeService extends InputMethodService {
     class AdbReceiver extends BroadcastReceiver {
         @Override
         public void onReceive(Context context, Intent intent) {
+            Log.d(TAG, "getAction =" + intent.getAction() +"msg:"+intent.getStringExtra("msg"));
 
-            if(intent.getAction().equals(httpImeService.HTTP_MSG_ACTION_TYPE))
-            {
-                Log.d(TAG, "getAction =" + intent.getAction() +"msg:"+intent.getStringExtra("msg"));
-            }else
-            {
-                if (intent.getAction().equals(IME_MESSAGE)) {
-                    String msg = intent.getStringExtra("msg");
-                    if (msg == null) {
-                        return;
-                    }
-                    String format = intent.getStringExtra("format");
-                    Log.d(TAG, "Input Format: " + format);
-                    if (format != null && format.equals("base64")) {
-                        String utf7msg = new String(Base64.decode(msg));
-                        msg = decodeUtf7(utf7msg);
-                    }
+            if (intent.getAction().equals(IME_MESSAGE)) {
+                String msg = intent.getStringExtra("msg");
+                if (msg == null) {
+                    return;
+                }
+                String format = intent.getStringExtra("format");
+                Log.d(TAG, "Input Format: " + format);
+                if (format != null && format.equals("base64")) {
+                    String utf7msg = new String(Base64.decode(msg));
+                    msg = decodeUtf7(utf7msg);
+                }
 
+                InputConnection ic = getCurrentInputConnection();
+                if (ic != null) {
+                    Log.d(TAG, "Input message: " + msg);
+                    ic.commitText(msg, 1);
+                }
+            }
+
+            if (intent.getAction().equals(IME_CHARS)) {
+                int[] chars = intent.getIntArrayExtra("chars");
+                if (chars != null) {
+                    String msg = new String(chars, 0, chars.length);
                     InputConnection ic = getCurrentInputConnection();
                     if (ic != null) {
-                        Log.d(TAG, "Input message: " + msg);
                         ic.commitText(msg, 1);
                     }
                 }
+            }
 
-                if (intent.getAction().equals(IME_CHARS)) {
-                    int[] chars = intent.getIntArrayExtra("chars");
-                    if (chars != null) {
-                        String msg = new String(chars, 0, chars.length);
-                        InputConnection ic = getCurrentInputConnection();
-                        if (ic != null) {
-                            ic.commitText(msg, 1);
+            if (intent.getAction().equals(IME_KEYCODE)) {
+                int code = intent.getIntExtra("code", -1);
+                int repeat = intent.getIntExtra("repeat", 1);
+                if (code != -1) {
+                    InputConnection ic = getCurrentInputConnection();
+                    if (ic != null) {
+                        for (int i=0; i < repeat; i++) {
+                            ic.sendKeyEvent(new KeyEvent(KeyEvent.ACTION_DOWN, code));
                         }
                     }
                 }
+            }
 
-                if (intent.getAction().equals(IME_KEYCODE)) {
-                    int code = intent.getIntExtra("code", -1);
-                    int repeat = intent.getIntExtra("repeat", 1);
-                    if (code != -1) {
-                        InputConnection ic = getCurrentInputConnection();
-                        if (ic != null) {
-                            for (int i=0; i < repeat; i++) {
-                                ic.sendKeyEvent(new KeyEvent(KeyEvent.ACTION_DOWN, code));
-                            }
-                        }
-                    }
-                }
-
-                if (intent.getAction().equals(IME_EDITORCODE)) {
-                    int code = intent.getIntExtra("code", -1);
-                    if (code != -1) {
-                        InputConnection ic = getCurrentInputConnection();
-                        if (ic != null) {
-                            ic.performEditorAction(code);
-                        }
+            if (intent.getAction().equals(IME_EDITORCODE)) {
+                int code = intent.getIntExtra("code", -1);
+                if (code != -1) {
+                    InputConnection ic = getCurrentInputConnection();
+                    if (ic != null) {
+                        ic.performEditorAction(code);
                     }
                 }
             }
